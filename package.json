@@ -1,0 +1,24 @@
+{
+  "name": "ddos-detector",
+  "version": "1.0.0",
+  "description": "DDoS detection and analysis tool using Electron and Python ML backend.",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "electron",
+    "ddos",
+    "security"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^28.2.0"
+  },
+  "dependencies": {
+    "path": "^0.12.7"
+  }
+}

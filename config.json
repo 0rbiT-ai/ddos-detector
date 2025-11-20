@@ -1,0 +1,7 @@
+{
+    "target_ip": "127.0.0.1",
+    "target_port": 8080,
+    "packets_to_send": 1000,
+    "sniff_interface": "Ethernet",
+    "pps_threshold": 2000
+}

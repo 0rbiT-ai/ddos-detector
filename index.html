@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DDoS Detection System</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1e1e1e;
+            color: #e0e0e0;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #4caf50;
+        }
+
+        .config-panel {
+            background-color: #2d2d2d;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .config-row {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .config-group {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #aaa;
+        }
+
+        input,
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #444;
+            background-color: #333;
+            color: #fff;
+        }
+
+        button {
+            background-color: #4caf50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+
+        button.stop-btn {
+            background-color: #f44336;
+        }
+
+        button.stop-btn:hover {
+            background-color: #d32f2f;
+        }
+
+        .status-panel {
+            background-color: #2d2d2d;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #status-text {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+
+        .normal {
+            color: #4caf50;
+        }
+
+        .attack {
+            color: #f44336;
+            animation: blink 1s infinite;
+        }
+
+        .chart-container {
+            background-color: #2d2d2d;
+            padding: 15px;
+            border-radius: 8px;
+            height: 300px;
+            margin-bottom: 20px;
+        }
+
+        #log-container {
+            background-color: #000;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+
+        .log-entry {
+            margin: 2px 0;
+        }
+
+        .log-error {
+            color: #ff6b6b;
+        }
+
+        .log-info {
+            color: #4caf50;
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 0.5;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🛡️ DDoS Detector & Mitigation</h1>
+
+        <div class="config-panel">
+            <h3>Configuration</h3>
+            <div class="config-row">
+                <div class="config-group">
+                    <label for="interface-select">Network Interface (Sniffer)</label>
+                    <select id="interface-select">
+                        <option value="" disabled selected>Loading interfaces...</option>
+                    </select>
+                </div>
+                <div class="config-group">
+                    <label for="pps-threshold">PPS Threshold (Detection)</label>
+                    <input type="number" id="pps-threshold" value="2000">
+                </div>
+            </div>
+            <div class="config-row">
+                <div class="config-group">
+                    <label for="target-ip">Target IP (Generator)</label>
+                    <input type="text" id="target-ip" value="127.0.0.1">
+                </div>
+                <div class="config-group">
+                    <label for="packet-count">Packets to Send</label>
+                    <input type="number" id="packet-count" value="1000">
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <button id="start-btn">Start System</button>
+                <button id="attack-btn" style="background-color: #ff9800; margin-left: 10px;">Simulate Attack</button>
+            </div>
+        </div>
+
+        <div class="status-panel">
+            <div id="status-text" class="normal">SYSTEM READY</div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="ppsChart"></canvas>
+        </div>
+
+        <div id="log-container"></div>
+    </div>
+
+    <script>
+        const startBtn = document.getElementById('start-btn');
+        const attackBtn = document.getElementById('attack-btn');
+        const interfaceSelect = document.getElementById('interface-select');
+        const targetIpInput = document.getElementById('target-ip');
+        const statusText = document.getElementById('status-text');
+        const logContainer = document.getElementById('log-container');
+
+        let isRunning = false;
+        let interfacesMap = {};
+
+        // Chart Setup
+        const ctx = document.getElementById('ppsChart').getContext('2d');
+        const ppsChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: Array(30).fill(''),
+                datasets: [{
+                    label: 'Packets Per Second (PPS)',
+                    data: Array(30).fill(0),
+                    borderColor: '#4caf50',
+                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#444' } },
+                    x: { grid: { display: false } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        function updateChart(pps) {
+            ppsChart.data.labels.shift();
+            ppsChart.data.labels.push(new Date().toLocaleTimeString().split(' ')[0]);
+            ppsChart.data.datasets[0].data.shift();
+            ppsChart.data.datasets[0].data.push(pps);
+            ppsChart.update();
+        }
+
+        // Load interfaces
+        window.api.getInterfaces().then(interfaces => {
+            interfaceSelect.innerHTML = '';
+            interfaces.forEach(iface => {
+                const option = document.createElement('option');
+                option.value = iface.name;
+                option.textContent = `${iface.name} (${iface.ip})`;
+                interfaceSelect.appendChild(option);
+                interfacesMap[iface.name] = iface.ip;
+            });
+
+            // Select first by default and update IP
+            if (interfaces.length > 0) {
+                interfaceSelect.value = interfaces[0].name;
+                targetIpInput.value = interfaces[0].ip;
+            }
+        });
+
+        // Dynamic IP Update
+        interfaceSelect.addEventListener('change', () => {
+            const selectedName = interfaceSelect.value;
+            if (interfacesMap[selectedName]) {
+                targetIpInput.value = interfacesMap[selectedName];
+            }
+        });
+
+        // Dynamic Threshold Update
+        const ppsThresholdInput = document.getElementById('pps-threshold');
+        ppsThresholdInput.addEventListener('change', () => {
+            if (isRunning) {
+                const newThreshold = ppsThresholdInput.value;
+                window.api.updateThreshold(newThreshold);
+                log(`PPS Threshold updated to ${newThreshold}`);
+            }
+        });
+
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `log-entry log-${type}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(div);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        startBtn.addEventListener('click', () => {
+            if (!isRunning) {
+                // START
+                const config = {
+                    interface: interfaceSelect.value,
+                    ppsThreshold: document.getElementById('pps-threshold').value
+                };
+
+                if (!config.interface) {
+                    alert('Please select a network interface.');
+                    return;
+                }
+
+                window.api.startSystem(config);
+                isRunning = true;
+                startBtn.textContent = 'Stop System';
+                startBtn.classList.add('stop-btn');
+                statusText.textContent = 'MONITORING';
+                statusText.className = 'normal';
+                log('System started on ' + config.interface);
+            } else {
+                // STOP
+                window.api.stopSystem();
+                isRunning = false;
+                startBtn.textContent = 'Start System';
+                startBtn.classList.remove('stop-btn');
+                statusText.textContent = 'SYSTEM STOPPED';
+                statusText.className = 'normal';
+                log('System stopped by user.');
+            }
+        });
+
+        attackBtn.addEventListener('click', () => {
+            const config = {
+                targetIp: targetIpInput.value,
+                packetCount: document.getElementById('packet-count').value,
+                targetPort: 8080
+            };
+
+            window.api.startAttack(config);
+            log(`Attack simulation started: ${config.packetCount} packets to ${config.targetIp}`);
+        });
+
+        window.api.onAnalysisResult((result) => {
+            updateChart(parseFloat(result.pps));
+
+            if (result.status === 'ATTACK DETECTED') {
+                statusText.textContent = '⚠️ ATTACK DETECTED';
+                statusText.className = 'attack';
+                ppsChart.data.datasets[0].borderColor = '#f44336';
+                ppsChart.data.datasets[0].backgroundColor = 'rgba(244, 67, 54, 0.2)';
+                log(`ALERT: ${result.reason} (${result.pps} PPS)`, 'error');
+            } else {
+                statusText.textContent = 'MONITORING';
+                statusText.className = 'normal';
+                ppsChart.data.datasets[0].borderColor = '#4caf50';
+                ppsChart.data.datasets[0].backgroundColor = 'rgba(76, 175, 80, 0.1)';
+                // Log heartbeat every update (approx 5s)
+                log(`Heartbeat: ${result.pps} PPS`, 'info');
+            }
+            ppsChart.update();
+        });
+
+        window.api.onSnifferError((error) => {
+            log(error, 'error');
+            if (error.includes('System Stopped')) {
+                isRunning = false;
+                startBtn.textContent = 'Start System';
+                startBtn.classList.remove('stop-btn');
+            }
+        });
+    </script>
+</body>
+
+</html>
