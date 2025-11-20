@@ -1,4 +1,4 @@
-# DDoS Detector & Mitigation System
+# DDoS Detector
 
 A real-time DDoS detection system using Electron for the frontend and Python (Scikit-learn) for the backend. It captures network traffic, analyzes it using a Random Forest model, and detects potential DDoS attacks based on packet patterns and PPS (Packets Per Second) thresholds.
 
