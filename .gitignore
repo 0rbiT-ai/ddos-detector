@@ -5,3 +5,4 @@ __pycache__/
 .vscode/
 .idea/
 *.log
+node_modules/local_benign_traffic.csv
